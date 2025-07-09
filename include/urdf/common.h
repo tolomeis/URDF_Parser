@@ -10,6 +10,8 @@
 
 #include "../tinyxml/txml.h"
 #include <memory>
+#include <Eigen/Dense>
+#include <Eigen/Geometry>
 
 #include "exception.h"
 
@@ -17,49 +19,84 @@ using namespace std;
 
 namespace urdf {
 
-	struct Vector3 {
-		double x;
-		double y;
-		double z;
+	class Vector3 : public Eigen::Vector3d {
+	public:
+		// Inherit constructors from Eigen::Vector3d
+		using Eigen::Vector3d::Vector3d;
+		
+		// Default constructor
+		Vector3() : Eigen::Vector3d(0., 0., 0.) {}
+		
+		// Copy constructor from Eigen::Vector3d
+		Vector3(const Eigen::Vector3d& other) : Eigen::Vector3d(other) {}
+		
+		// Copy constructor
+		Vector3(const Vector3& other) : Eigen::Vector3d(other) {}
 
 		void clear() {
-			x = 0.;
-			y = 0.;
-			z = 0.;
+			x() = 0.;
+			y() = 0.;
+			z() = 0.;
 		}
 
-		Vector3 operator+(const Vector3& other);
-
-		Vector3(double x, double y, double z) : x(x), y(y), z(z) {}
-		Vector3(const Vector3 &other) : x(other.x), y(other.y), z(other.z) {}
-		Vector3() : x(0.), y(0.), z(0.) {}
+		// Provide compatibility accessors
+		double& x() { return (*this)[0]; }
+		double& y() { return (*this)[1]; }
+		double& z() { return (*this)[2]; }
+		const double& x() const { return (*this)[0]; }
+		const double& y() const { return (*this)[1]; }
+		const double& z() const { return (*this)[2]; }
 
 		static Vector3 fromVecStr(const string& vector_str);
 	};
 
-	struct Rotation {
-		double x;
-		double y;
-		double z;
-		double w;
+	class Rotation : public Eigen::Quaterniond {
+	public:
+		// Inherit constructors from Eigen::Quaterniond
+		using Eigen::Quaterniond::Quaterniond;
+		
+		// Default constructor (identity quaternion)
+		Rotation() : Eigen::Quaterniond(1., 0., 0., 0.) {}
+		
+		// Copy constructor from Eigen::Quaterniond
+		Rotation(const Eigen::Quaterniond& other) : Eigen::Quaterniond(other) {}
+		
+		// Copy constructor
+		Rotation(const Rotation& other) : Eigen::Quaterniond(other) {}
 
 		void clear() {
-			x=0.;
-			y=0.;
-			z=0.;
-			w=1.;
+			x() = 0.;
+			y() = 0.;
+			z() = 0.;
+			w() = 1.;
 		}
 
 		void getRpy(double &roll, double &pitch, double &yaw) const;
-		void normalize();
-		Rotation getInverse() const;
+		void normalize() { 
+			Eigen::Quaterniond::normalize(); 
+		}
+		Rotation getInverse() const {
+			return Rotation(conjugate());
+		}
 
-		Rotation operator*( const Rotation &other ) const;
-		Vector3 operator*(const Vector3& vec) const;
+		// Operators
+		Rotation operator*(const Rotation& other) const {
+			return Rotation(static_cast<const Eigen::Quaterniond&>(*this) * static_cast<const Eigen::Quaterniond&>(other));
+		}
+		
+		Vector3 operator*(const Vector3& vec) const {
+			return Vector3((*this) * static_cast<const Eigen::Vector3d&>(vec));
+		}
 
-		Rotation(double x, double y, double z, double w) : x(x), y(y), z(z), w(w) {}
-		Rotation(const Rotation &other) : x(other.x), y(other.y), z(other.z), w(other.w) {}
-		Rotation() : x(0.), y(0.), z(0.), w(1.) {}
+		// Provide compatibility accessors  
+		double& x() { return coeffs()[0]; }
+		double& y() { return coeffs()[1]; }
+		double& z() { return coeffs()[2]; }
+		double& w() { return coeffs()[3]; }
+		const double& x() const { return coeffs()[0]; }
+		const double& y() const { return coeffs()[1]; }
+		const double& z() const { return coeffs()[2]; }
+		const double& w() const { return coeffs()[3]; }
 
 		static Rotation fromRpy(double roll, double pitch, double yaw);
 		static Rotation fromRpyStr(const string &rotation_str);
@@ -85,23 +122,62 @@ namespace urdf {
 		static Color fromColorStr(const std::string &vector_str);
 	};
 
-	struct Transform {
-		Vector3  position;
-		Rotation rotation;
+	class Transform : public Eigen::Isometry3d {
+	public:
+		// Inherit Eigen::Isometry3d constructors
+		using Eigen::Isometry3d::Isometry3d;
+
+		// Default constructor (identity)
+		Transform() : Eigen::Isometry3d(Eigen::Isometry3d::Identity()) {}
+
+		// Copy constructor
+		Transform(const Transform& other) : Eigen::Isometry3d(other) {}
+
+		// From Eigen::Isometry3d
+		Transform(const Eigen::Isometry3d& iso) : Eigen::Isometry3d(iso) {}
 
 		void clear() {
-			this->position.clear();
-			this->rotation.clear();
-		};
+			*this = Eigen::Isometry3d::Identity();
+		}
 
-		Transform() : position(Vector3()), rotation(Rotation()) {}
-		Transform(const Transform& other) : position(other.position), rotation(other.rotation) {}
+		Vector3 position() const {
+			return Vector3(this->translation());
+		}
 
-		static Transform fromXml(TiXmlElement* xml);
+		void setPosition(const Vector3& pos) {
+			this->translation() = pos;
+		}
+
+		Rotation rotation() const {
+			return Rotation(Eigen::Quaterniond(this->linear()));
+		}
+
+		void setRotation(const Rotation& rot) {
+			this->linear() = rot.toRotationMatrix();
+		}
+
+		// Transform multiplication for composing transforms
+		Transform operator*(const Transform& other) const {
+			return Transform(static_cast<const Eigen::Isometry3d&>(*this) * static_cast<const Eigen::Isometry3d&>(other));
+		}
+
+		// Conversion to Eigen::Isometry3d (no-op)
+		Eigen::Isometry3d toIsometry3d() const {
+			return *this;
+		}
+
+		// Create from Eigen::Isometry3d (alias)
+		static Transform fromIsometry3d(const Eigen::Isometry3d& iso) {
+			return Transform(iso);
+		}
+
+		static Transform fromXml(TiXmlElement* xml); // Declaration only
 	};
 
 
-	struct Twist {
+
+	class Twist {
+	public:
 		Vector3  linear;
 		Vector3  angular;
 

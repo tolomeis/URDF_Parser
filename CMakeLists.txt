@@ -2,12 +2,14 @@ CMAKE_MINIMUM_REQUIRED(VERSION 3.10)
 PROJECT(urdfparser)
 
 FIND_PACKAGE(Boost REQUIRED)
+FIND_PACKAGE(Eigen3 REQUIRED)
 
 SET(CMAKE_CXX_STANDARD 17)
 
 INCLUDE_DIRECTORIES(
   ${CMAKE_CURRENT_SOURCE_DIR}/include
   ${Boost_INCLUDE_DIR}
+  ${EIGEN3_INCLUDE_DIR}
 )
 
 OPTION(URDF_BUILD_TEST "enable testing of library" OFF)
@@ -41,3 +43,6 @@ IF(URDF_BUILD_TEST)
   TARGET_LINK_LIBRARIES(load_file urdfparser)
 
 ENDIF(URDF_BUILD_TEST)
+
+add_executable(urdf_test main_test.cpp)
+TARGET_LINK_LIBRARIES(urdf_test urdfparser)

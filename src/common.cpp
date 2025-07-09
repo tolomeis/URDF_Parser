@@ -8,7 +8,7 @@ using namespace std;
 // ------------------- Vector Implementation -------------------
 
 Vector3 Vector3::fromVecStr(const string& vector_str) {
-	Vector3 vec;
+	urdf::Vector3 vec;
 
 	vector<string> pieces;
 	vector<double> values;
@@ -32,15 +32,11 @@ Vector3 Vector3::fromVecStr(const string& vector_str) {
 		throw URDFParseError(error_msg.str());
 	}
 
-	vec.x = values[0];
-	vec.y = values[1];
-	vec.z = values[2];
+	vec.x() = values[0];
+	vec.y() = values[1];
+	vec.z() = values[2];
 
 	return vec;
-}
-
-Vector3 Vector3::operator+(const Vector3& other) {
-	return Vector3(x+other.x, y+other.y, z+other.z);
 }
 
 // ------------------- Quaternion Implementation -------------------
@@ -51,13 +47,13 @@ void Rotation::getRpy(double &roll, double &pitch, double &yaw) const {
 	double sqy;
 	double sqz;
 
-	sqx = x * x;
-	sqy = y * y;
-	sqz = z * z;
-	sqw = w * w;
+	sqx = x() * x();
+	sqy = y() * y();
+	sqz = z() * z();
+	sqw = w() * w();
 
-	roll = atan2( 2*(y*z + w*x), sqw - sqx - sqy + sqz );
-	double s = -2*(x*z - w*y);
+	roll = atan2( 2*(y()*z() + w()*x()), sqw - sqx - sqy + sqz );
+	double s = -2*(x()*z() - w()*y());
 	if (s <= -1.) {
 		pitch = -0.5*M_PI;
 	} else if (s >= 1.) {
@@ -65,91 +61,23 @@ void Rotation::getRpy(double &roll, double &pitch, double &yaw) const {
 	} else {
 		pitch = asin(s);
 	}
-	yaw   = atan2( 2*(x*y + w*z), sqw + sqx - sqy - sqz );
+	yaw   = atan2( 2*(x()*y() + w()*z()), sqw + sqx - sqy - sqz );
 }
-
-void Rotation::normalize() {
-	double s = sqrt(x*x + y*y + z*z + w*w);
-	if (s == 0.0) {
-		x = 0.0;
-		y = 0.0;
-		z = 0.0;
-		w = 1.0;
-	} else {
-		x /= s;
-		y /= s;
-		z /= s;
-		w /= s;
-	}
-}
-
-Rotation Rotation::getInverse() const {
-	Rotation result;
-
-	double norm = w*w + x*x + y*y + z*z;
-
-	if (norm > 0.0) {
-		result.w = w / norm;
-		result.x = -1*x / norm;
-		result.y = -1*y / norm;
-		result.z = -1*z / norm;
-	}
-
-	return result;
-}
-
-Rotation Rotation::operator*( const Rotation &other ) const {
-	Rotation result;
-
-	result.x = (w * other.x) + (x * other.w) + (y * other.z) - (z * other.y);
-	result.y = (w * other.y) - (x * other.z) + (y * other.w) + (z * other.x);
-	result.z = (w * other.z) + (x * other.y) - (y * other.x) + (z * other.w);
-	result.w = (w * other.w) - (x * other.x) - (y * other.y) - (z * other.z);
-
-	return result;
-}
-
-Vector3 Rotation::operator*(const Vector3& vec) const {
-	Rotation t;
-	Vector3 result;
-
-	t.w = 0.0;
-	t.x = vec.x;
-	t.y = vec.y;
-	t.z = vec.z;
-
-	t = (*this) * (t * getInverse());
-
-	result.x = t.x;
-	result.y = t.y;
-	result.z = t.z;
-
-	return result;
-}
-
 
 Rotation Rotation::fromRpy(double roll, double pitch, double yaw) {
-	Rotation rot;
-	double phi, the, psi;
-
-	phi = roll / 2.0;
-	the = pitch / 2.0;
-	psi = yaw / 2.0;
-
-	rot.x = (sin(phi) * cos(the) * cos(psi)) - (cos(phi) * sin(the) * sin(psi));
-	rot.y = (cos(phi) * sin(the) * cos(psi)) + (sin(phi) * cos(the) * sin(psi));
-	rot.z = (cos(phi) * cos(the) * sin(psi)) - (sin(phi) * sin(the) * cos(psi));
-	rot.w = (cos(phi) * cos(the) * cos(psi)) + (sin(phi) * sin(the) * sin(psi));
-
-	rot.normalize();
-
-	return rot;
+	// Use Eigen's AngleAxis composition() for RPY
+	Eigen::AngleAxisd rollAngle(roll, Eigen::Vector3d::UnitX());
+	Eigen::AngleAxisd pitchAngle(pitch, Eigen::Vector3d::UnitY());
+	Eigen::AngleAxisd yawAngle(yaw, Eigen::Vector3d::UnitZ());
+	
+	Eigen::Quaterniond q = yawAngle * pitchAngle * rollAngle;
+	return Rotation(q);
 };
 
 
 Rotation Rotation::fromRpyStr(const string &rotation_str) {
-	Vector3 rpy = Vector3::fromVecStr(rotation_str);
-	return Rotation::fromRpy(rpy.x, rpy.y, rpy.z);
+	urdf::Vector3 rpy = urdf::Vector3::fromVecStr(rotation_str);
+	return Rotation::fromRpy(rpy.x(), rpy.y(), rpy.z());
 }
 
 // ------------------- Color Implementation -------------------
@@ -185,17 +113,25 @@ Color Color::fromColorStr(const std::string &vector_str) {
 
 // ------------------- Transform Implementation -------------------
 
+// Transform Transform::operator*(const Transform& other) const {
+// 	Transform result;
+// 	// Use Eigen operations for more efficient and robust transforms
+// 	result.position() = Vector3(this->rotation() * static_cast<const Eigen::Vector3d&>(other.position()) + static_cast<const Eigen::Vector3d&>(this->position()));
+// 	result.rotation() = Rotation(static_cast<const Eigen::Quaterniond&>(this->rotation()) * static_cast<const Eigen::Quaterniond&>(other.rotation()));
+// 	return result;
+// }
+
 Transform Transform::fromXml(TiXmlElement* xml) {
 	Transform t;
 	if (xml) {
 		const char* xyz_str = xml->Attribute("xyz");
 		if (xyz_str != NULL) {
-			t.position = Vector3::fromVecStr(xyz_str);
+			t.setPosition(Vector3::fromVecStr(xyz_str));
 		}
 
 		const char* rpy_str = xml->Attribute("rpy");
 		if (rpy_str != NULL) {
-			t.rotation = Rotation::fromRpyStr(rpy_str);
+			t.setRotation(Rotation::fromRpyStr(rpy_str));
 		}
 	}
 	return t;
