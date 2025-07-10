@@ -6,15 +6,7 @@ FIND_PACKAGE(Eigen3 REQUIRED)
 
 SET(CMAKE_CXX_STANDARD 17)
 
-INCLUDE_DIRECTORIES(
-  ${CMAKE_CURRENT_SOURCE_DIR}/include
-  ${Boost_INCLUDE_DIR}
-  ${EIGEN3_INCLUDE_DIR}
-)
-
-OPTION(URDF_BUILD_TEST "enable testing of library" OFF)
-
-SET( URDF_SRCS
+SET(URDF_SRCS
   src/common.cpp
   src/joint.cpp
   src/geometry.cpp
@@ -29,9 +21,21 @@ ADD_LIBRARY( urdfparser SHARED
   ${URDF_SRCS}
 )
 
+target_include_directories(urdfparser PUBLIC
+  "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+  "$<INSTALL_INTERFACE:include>"
+)
+
+target_link_libraries(urdfparser PUBLIC
+    Eigen3::Eigen
+    Boost::boost
+)
+
 SET(URDFPARSER_LIB urdfparser)
 
 SET_PROPERTY(TARGET urdfparser PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+OPTION(URDF_BUILD_TEST "enable testing of library" OFF)
 
 IF(URDF_BUILD_TEST) 
   include_directories(".")  # include catch.hpp
