@@ -16,10 +16,7 @@ SET(URDF_SRCS
   src/tinyxmlerror.cpp
   src/tinyxmlparser.cpp
 )
-
-ADD_LIBRARY( urdfparser SHARED
-  ${URDF_SRCS}
-)
+ADD_LIBRARY( urdfparser ${URDF_SRCS})
 
 target_include_directories(urdfparser PUBLIC
   "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
@@ -45,8 +42,7 @@ IF(URDF_BUILD_TEST)
 
   ADD_EXECUTABLE(load_file test/load_file.cpp)
   TARGET_LINK_LIBRARIES(load_file urdfparser)
-
+  
+  add_executable(urdf_test main_test.cpp)
+  TARGET_LINK_LIBRARIES(urdf_test urdfparser)
 ENDIF(URDF_BUILD_TEST)
-
-add_executable(urdf_test main_test.cpp)
-TARGET_LINK_LIBRARIES(urdf_test urdfparser)
